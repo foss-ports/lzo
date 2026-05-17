@@ -8,7 +8,7 @@
 # All Rights Reserved.
 #
 
-cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
 #
 # simple usage example (Unix):
@@ -90,6 +90,7 @@ if(lzo_USE_OBJECT_LIB)
     set_property(TARGET lzo_object_lib PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
 if(ENABLE_STATIC)
+    set(LZO_LIBRARY_NAME lzo_static_lib)
     if(lzo_USE_OBJECT_LIB)
         add_library(lzo_static_lib STATIC $<TARGET_OBJECTS:lzo_object_lib>)
     else()
@@ -97,8 +98,11 @@ if(ENABLE_STATIC)
         list(APPEND lzo_COMPILE_TARGETS lzo_static_lib)
     endif()
     set_target_properties(lzo_static_lib PROPERTIES OUTPUT_NAME lzo2)
+
+    add_library(lzo ALIAS lzo_static_lib)
 endif()
 if(ENABLE_SHARED)
+    set(LZO_LIBRARY_NAME lzo_shared_lib)
     if(lzo_USE_OBJECT_LIB)
         add_library(lzo_shared_lib SHARED $<TARGET_OBJECTS:lzo_object_lib>)
     else()
@@ -112,6 +116,8 @@ if(ENABLE_SHARED)
     endif()
     set_target_properties(lzo_shared_lib PROPERTIES SOVERSION 2 VERSION 2.0.0) # ABI version is 2.0.0 !
     set_target_properties(lzo_shared_lib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+    add_library(lzo ALIAS lzo_shared_lib)
 endif()
 
 # tests & examples
@@ -154,8 +160,8 @@ endif()
 # // this section currently mostly matches the Autoconf version
 # ************************************************************************/
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(${LZO_LIBRARY_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(${LZO_LIBRARY_NAME} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 include(CheckFunctionExists)
 include(CheckIncludeFile)
@@ -166,17 +172,17 @@ include(TestBigEndian)
 
 if(MSVC)
     # disable silly warnings about using "deprecated" POSIX functions like fopen()
-    add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
-    add_definitions(-D_CRT_NONSTDC_NO_WARNINGS)
-    add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D_CRT_NONSTDC_NO_DEPRECATE)
+    target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D_CRT_NONSTDC_NO_WARNINGS)
+    target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D_CRT_SECURE_NO_DEPRECATE)
+    target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D_CRT_SECURE_NO_WARNINGS)
 endif()
 
 # Checks for header files
 macro(mfx_check_include_file f var)
     check_include_file("${f}" "mfx_${var}")
     if(NOT ",${mfx_${var}}," STREQUAL ",,")
-        add_definitions(-D${var}=1)
+        target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D${var}=1)
         set(mfx_${var} 1)
     else()
         set(mfx_${var} 0)
@@ -194,7 +200,7 @@ endforeach()
 macro(mfx_check_type_size type var)
     check_type_size("${type}" "mfx_${var}")
     if("${mfx_${var}}" MATCHES "^[1-9][0-9]*$")
-        add_definitions(-D${var}=${mfx_${var}})
+        target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D${var}=${mfx_${var}})
     else()
         set(mfx_${var} 0)
     endif()
@@ -212,7 +218,7 @@ endforeach()
 macro(mfx_check_function_exists func var)
     check_function_exists("${func}" "mfx_${var}")
     if(NOT ",${mfx_${var}}," STREQUAL ",,")
-        add_definitions(-D${var}=1)
+        target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -D${var}=1)
         set(mfx_${var} 1)
     else()
         set(mfx_${var} 0)
@@ -229,15 +235,15 @@ endforeach()
 # mfx_LZO_CHECK_ENDIAN
 TEST_BIG_ENDIAN(big_endian)
 if ("${big_endian}" MATCHES "^1$")
-    add_definitions(-DLZO_ABI_BIG_ENDIAN=1)
+    target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -DLZO_ABI_BIG_ENDIAN=1)
 elseif ("${big_endian}" MATCHES "^0$")
-    add_definitions(-DLZO_ABI_LITTLE_ENDIAN=1)
+    target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -DLZO_ABI_LITTLE_ENDIAN=1)
 else()
     message(FATAL_ERROR "ERROR: TEST_BIG_ENDIAN failed with result '${big_endian}'.")
 endif()
 
 # LZO_HAVE_CONFIG_H
-add_definitions(-DLZO_CFG_NO_CONFIG_HEADER=1)
+target_compile_definitions(${LZO_LIBRARY_NAME} PRIVATE -DLZO_CFG_NO_CONFIG_HEADER=1)
 
 # warnings
 foreach(t ${lzo_COMPILE_TARGETS})
